@@ -16,25 +16,32 @@ namespace BranchPresets
 	{
 		public override void Process(AddFromTemplateArgs args)
 		{
-			if (args.Destination.Database.Name != "master") return;
+			if (args.Aborted || args.Destination.Database.Name != "master") return;
 
-			var templateItem = args.Destination.Database.GetItem(args.TemplateId);
+		    if (!args.Handled)
+		    {
+		        var item = args.FallbackProvider.AddFromTemplate(args.ItemName, args.TemplateId, args.Destination, args.NewId);
+		        args.Result = item;
+		    }
 
-			Assert.IsNotNull(templateItem, "Template did not exist!");
+		    if (args.Result != null)
+		    {
+		        var templateItem = args.Destination.Database.GetItem(args.TemplateId);
 
-			// if this isn't a branch template, we can use the stock behavior
-			if (templateItem.TemplateID != TemplateIDs.BranchTemplate) return;
+		        Assert.IsNotNull(templateItem, "Template did not exist!");
 
-			Assert.HasAccess((args.Destination.Access.CanCreate() ? 1 : 0) != 0, "AddFromTemplate - Add access required (destination: {0}, template: {1})", args.Destination.ID, args.TemplateId);
+		        // if this isn't a branch template, we can use the stock behavior
+		        if (templateItem.TemplateID != TemplateIDs.BranchTemplate) return;
 
-			// Create the branch template instance
-			Item newItem = args.Destination.Database.Engines.DataEngine.AddFromTemplate(args.ItemName, args.TemplateId, args.Destination, args.NewId);
-
-			// find all rendering data sources on the branch root item that point to an item under the branch template,
-			// and repoint them to the equivalent subitem under the branch instance
-			RewriteBranchRenderingDataSources(newItem, templateItem);
-
-			args.Result = newItem;
+		        Assert.HasAccess((args.Destination.Access.CanCreate() ? 1 : 0) != 0,
+		            "AddFromTemplate - Add access required (destination: {0}, template: {1})", args.Destination.ID,
+		            args.TemplateId);
+                
+		        // find all rendering data sources on the branch root item that point to an item under the branch template,
+		        // and repoint them to the equivalent subitem under the branch instance
+		        RewriteBranchRenderingDataSources(args.Result, templateItem);
+                
+		    }
 		}
 
 		protected virtual void RewriteBranchRenderingDataSources(Item item, BranchItem branchTemplateItem)
